@@ -7,7 +7,7 @@
 * @version 1.9.8b
 */
 
-define ('EXTENDED_LOGGING', 0);
+define('EXTENDED_LOGGING', 0);
 
 define ('MIIO_YEELIGHT_WHITE_BULB_PROPS', 'power,bright,flow_params,flowing');
 define ('MIIO_YEELIGHT_COLOR_BULB_PROPS', 'power,bright,ct,rgb,hue,sat,color_mode,flow_params,flowing');
@@ -32,6 +32,7 @@ define ('MIIO_ZHIMI_HUMIDIFIER_PROPS', 'power,humidity,temp_dec,mode,led_b,buzze
 define ('MIIO_ZHIMI_HUMIDIFIER_2_PROPS', 'power,humidity,temp_dec,mode,depth,speed,dry,use_time,led_b,buzzer,child_lock,limit_hum');
 
 define ('MIIO_ZHIMI_AIRPURIFIER_MA2_PROPS', 'power,aqi,average_aqi,humidity,temp_dec,bright,mode,favorite_level,filter1_life,use_time,purify_volume,led,buzzer,child_lock');
+define ('MIIO_ZHIMI_AIRPURIFIER_V3', 'power,aqi,average_aqi,bright,mode,filter1_life,led,buzzer,child_lock');
 
 define ('MIIO_MIWIFISPEAKER_V1_PROPS', 'umi,volume,rel_time');
 
@@ -653,7 +654,15 @@ class xiaomimiio extends module {
 				$props[$i] = '"' . $props[$i] . '"';
 			}
 			$this->addToQueue($device_id, 'get_prop', '[' . implode(',', $props) . ']');
-		} elseif ($device_rec['DEVICE_TYPE'] == 'yeelink.light.bslamp1') {
+		} elseif ($device_rec['DEVICE_TYPE'] == 'zhimi.airpurifier.v3') {
+			//
+			$props = explode(',', MIIO_ZHIMI_AIRPURIFIER_V3);
+			$total = count($props);
+			for ($i = 0; $i < $total; $i++) {
+				$props[$i] = '"' . $props[$i] . '"';
+			}
+			$this->addToQueue($device_id, 'get_prop', '[' . implode(',', $props) . ']');
+		}elseif ($device_rec['DEVICE_TYPE'] == 'yeelink.light.bslamp1') {
 			//
 			$props = explode(',', MIIO_YEELIGHT_BSLAMP1_PROPS);
 			$total = count($props);
@@ -1030,7 +1039,15 @@ class xiaomimiio extends module {
 							if ($value == 'silent' || $value == 'medium' || $value == 'high') {
 								$this->addToQueue($properties[$i]['DEVICE_ID'], 'set_mode', '["' . $value . '"]');
 							}
-						} elseif($properties[$i]['DEVICE_TYPE'] == 'zhimi.humidifier.ca1') {
+						} 
+                            elseif($properties[$i]['DEVICE_TYPE'] == 'zhimi.airpurifier.v3') {
+							// Изменение режима (silent, medium, high)
+							if ($value == 'silent' || $value == 'medium' || $value == 'high' || $value == 'low' || $value == 'auto' 
+                                || $value == 'strong' || $value == 'idle') {
+								$this->addToQueue($properties[$i]['DEVICE_ID'], 'set_mode', '["' . $value . '"]');
+							}
+						}                            
+                            elseif($properties[$i]['DEVICE_TYPE'] == 'zhimi.humidifier.ca1') {
 							// Изменение режима (auto, silent, medium, high)
 							if ($value == 'auto' || $value == 'silent' || $value == 'medium' || $value == 'high') {
 								$this->addToQueue($properties[$i]['DEVICE_ID'], 'set_mode', '["' . $value . '"]');
@@ -1101,9 +1118,9 @@ class xiaomimiio extends module {
                } elseif ($properties[$i]['TITLE'] == 'angle_enable') {
                   // Команда на включение и выключение автоматического поворота вентилятора
                   if ($value) {
-                     $this->addToQueue($properties[$i]['DEVICE_ID'], 'set_angle_enable', '["on"]');
-                  } else {
-                     $this->addToQueue($properties[$i]['DEVICE_ID'], 'set_angle_enable', '["off"]');
+                      $this->addToQueue($properties[$i]['DEVICE_ID'], 'set_angle_enable', '["on"]');
+                  }else{
+                      $this->addToQueue($properties[$i]['DEVICE_ID'], 'set_angle_enable', '["off"]');
                   }
                } elseif ($properties[$i]['TITLE'] == 'eyecare') {
                   // Команда на включение и выключение автоматической подстройки яркости
@@ -1519,7 +1536,20 @@ class xiaomimiio extends module {
 					$res_commands[] = array('command' => $key, 'value' => $value);
 					$i++;
 				}
-			} elseif ($device['DEVICE_TYPE'] == 'yeelink.light.bslamp1' && $command == 'get_prop' && is_array($data['result'])) {
+			} elseif ($device['DEVICE_TYPE'] == 'zhimi.airpurifier.v3' && $command == 'get_prop' && is_array($data['result'])) {
+				$props = explode(',', MIIO_ZHIMI_AIRPURIFIER_V3);
+				$i = 0;
+				foreach($props as $key) {
+					$value = $data['result'][$i];
+					if ($key == 'temp_dec') {
+						$value = $value / 10;
+						$key = 'temperature';
+					}
+					if ($key == 'bright') $key = 'illumination';
+					$res_commands[] = array('command' => $key, 'value' => $value);
+					$i++;
+				}
+			}elseif ($device['DEVICE_TYPE'] == 'yeelink.light.bslamp1' && $command == 'get_prop' && is_array($data['result'])) {
 				$props = explode(',', MIIO_YEELIGHT_BSLAMP1_PROPS);
 				$i = 0;
 				foreach($props as $key) {
@@ -1627,7 +1657,7 @@ class xiaomimiio extends module {
             if ($object->class_id != 0) {
                SQLExec("DELETE FROM properties WHERE ID={$property_id}");
             }
-         }
+          }
       }
 
       SQLExec("DELETE FROM cached_values WHERE KEYWORD LIKE '%{$cycle_name}%'");
